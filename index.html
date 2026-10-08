@@ -13,6 +13,10 @@
 .receipt-confirmation h2{color:#536551;margin:10px 0 22px}.receipt-check{margin:auto;background:#536551;color:white;border-radius:50%;font-size:27px;width:48px;height:48px;line-height:48px}
 .receipt-table{border-collapse:collapse;width:100%;text-align:left;direction:ltr}.receipt-table th,.receipt-table td{border:1px solid #D8D4C9;padding:14px;overflow-wrap:anywhere}.receipt-table th{background:#E8E3D5;width:42%}.receipt-table td{font-weight:700;color:#536551}.receipt-confirmation p{line-height:1.6}
 @media(max-width:500px){.receipt-table th,.receipt-table td{padding:9px;font-size:13px}}
+
+.receipt-response{margin:20px 0 0;padding:16px 18px;background:#f6f3eb;border-left:4px solid #A98C54;border-radius:8px;text-align:left;line-height:1.65}
+.receipt-response strong{display:block;color:#536551;font-size:17px}.receipt-response p{margin:8px 0 0;font-weight:400;color:#222}
+body.rtl .receipt-response{text-align:right;border-left:0;border-right:4px solid #A98C54}
 </style>
  </head>
  <body>
@@ -178,18 +182,27 @@
       document.head.appendChild(script);
     });
   }
+  let confirmedReceipt=null;
   function showConfirmedReceipt(receipt){
+    confirmedReceipt=receipt;
     const ar=lang==='ar';
     const title=ar?'تم استلام طلب الصيانة بنجاح':'Maintenance Complaint Submitted Successfully';
     const reference=ar?'رقم الشكوى':'Complaint ID';
     const submitted=ar?'تاريخ ووقت الاستلام (الإمارات)':'Submitted At (UAE)';
-    const explanation=ar?'تم حفظ الشكوى في سجل الصيانة. يرجى الاحتفاظ برقم الشكوى للمتابعة.':'Your complaint has been recorded in the maintenance register. Keep your reference number for follow-up.';
+    const explanation=ar?'تم تسجيل طلبك بنجاح. يرجى الاحتفاظ برقم الطلب للمتابعة.':'Your request has been recorded successfully. Please keep your complaint reference number for follow-up.';
+    const responseTitle=ar?'وقت الاستجابة المتوقع':'Expected Response Time';
+    const normalMessage=ar
+      ?'بالنسبة لطلبات الصيانة العادية غير الطارئة، سيقوم فريقنا بالرد خلال 24 إلى 48 ساعة. قد يستغرق الإصلاح وقتاً أطول حسب طبيعة المشكلة، وتوفر قطع الغيار، وإمكانية الدخول إلى الوحدة، أو الحاجة إلى مقاول خارجي.'
+      :'For normal, non-emergency maintenance requests, our team will respond within 24–48 hours. The actual repair may take longer depending on the nature of the issue, availability of spare parts, access to the premises, or the need for an external contractor.';
+    const urgentMessage=ar
+      ?'تم تسجيل الطلب كطلب عاجل وسيتم مراجعته حسب درجة الخطورة. في حالات الخطر الفوري، يرجى الاتصال بخدمات الطوارئ أو إدارة المبنى مباشرة.'
+      :'Your request is marked urgent and will be reviewed according to its severity. For immediate danger, contact emergency services or building management directly.';
+    const responseMessage=receipt.priority==='Urgent'?urgentMessage:normalMessage;
     $('form').innerHTML='<section class="receipt-confirmation" role="status" aria-live="polite">'
       +'<div class="receipt-check">✓</div><h2>'+title+'</h2>'
       +'<table class="receipt-table"><tr><th>'+reference+'</th><td>'+escapeHtml(String(receipt.id))+'</td></tr>'
       +'<tr><th>'+submitted+'</th><td>'+escapeHtml(String(receipt.submittedAt))+' (GMT+4)</td></tr></table>'
-      +'<p>'+explanation+'</p></section>';
-    pendingSubmissionToken=null;
+      +'<p>'+explanation+'</p><div class="receipt-response"><strong>'+responseTitle+'</strong><p>'+responseMessage+'</p></div></section>';
   }
   async function submit(){
     if(!validStep())return;
@@ -215,7 +228,7 @@
         receipt=await verifyReceipt(token,attempt);
         if(receipt)break;
       }
-      if(receipt){showConfirmedReceipt(receipt);return;}
+      if(receipt){receipt.priority=payload.priority;showConfirmedReceipt(receipt);return;}
       $('message').textContent=lang==='ar'
         ?'تعذر تأكيد استلام الطلب حالياً. قد يكون قد تم تسجيله. يرجى التواصل مع إدارة المبنى قبل إعادة الإرسال لتجنب التكرار.'
         :'We could not verify your submission yet. It may already be recorded. Please contact the building team before trying again to avoid duplicates.';
@@ -223,7 +236,7 @@
     }catch(e){$('message').textContent=DATA.t[lang].fail+' ('+e.message+')';$('message').className='error'}
     finally{if(document.getElementById('next')){b.disabled=false;renderStep()}}
   }
-  $('lang').onclick=()=>{lang=lang==='en'?'ar':'en';render()};$('phone').addEventListener('input',e=>{let v=e.target.value.replace(/[^0-9]/g,'');if(v.startsWith('971'))v=v.slice(3);if(v.startsWith('05'))v=v.slice(1);e.target.value=v.slice(0,9)});$('category').onchange=renderProblems;$('unit').onchange=renderTerms;$('back').onclick=()=>{step--;renderStep()};$('next').onclick=()=>{if(step<2){if(!validStep())return;step++;renderStep()}else submit()};$('photos').onchange=e=>{files=[...e.target.files];if(files.length>3||files.some(f=>f.size>3*1024*1024||!['image/jpeg','image/png','image/webp'].includes(f.type))){alert('Maximum 3 JPG/PNG/WebP photos, each under 3 MB');e.target.value='';files=[]}};const qp=new URLSearchParams(location.search);let selected=qp.get('property');$('property').value=DATA.units.some(u=>u.property===selected)?selected:DATA.units[0].property;render();
+  $('lang').onclick=()=>{lang=lang==='en'?'ar':'en';if(confirmedReceipt){document.documentElement.lang=lang;document.body.classList.toggle('rtl',lang==='ar');$('lang').textContent=lang==='en'?'العربية':'English';showConfirmedReceipt(confirmedReceipt)}else render()};$('phone').addEventListener('input',e=>{let v=e.target.value.replace(/[^0-9]/g,'');if(v.startsWith('971'))v=v.slice(3);if(v.startsWith('05'))v=v.slice(1);e.target.value=v.slice(0,9)});$('category').onchange=renderProblems;$('unit').onchange=renderTerms;$('back').onclick=()=>{step--;renderStep()};$('next').onclick=()=>{if(step<2){if(!validStep())return;step++;renderStep()}else submit()};$('photos').onchange=e=>{files=[...e.target.files];if(files.length>3||files.some(f=>f.size>3*1024*1024||!['image/jpeg','image/png','image/webp'].includes(f.type))){alert('Maximum 3 JPG/PNG/WebP photos, each under 3 MB');e.target.value='';files=[]}};const qp=new URLSearchParams(location.search);let selected=qp.get('property');$('property').value=DATA.units.some(u=>u.property===selected)?selected:DATA.units[0].property;render();
   </script>
  </body>
 </html>
